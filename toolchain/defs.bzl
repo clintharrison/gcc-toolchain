@@ -57,13 +57,20 @@ def _gcc_toolchain_impl(rctx):
     tool_paths = _render_tool_paths(rctx, toolchain_root, binary_prefix)
     rctx.file("tool_paths.bzl", "tool_paths = {}".format(str(tool_paths)))
 
-    include_prefix = None
-    if target_arch == ARCHS.aarch64:
+    if rctx.attr.include_prefix != None:
+        include_prefix = rctx.attr.include_prefix
+    elif target_arch == ARCHS.aarch64:
         include_prefix = "aarch64-linux/"
     elif target_arch == ARCHS.armv7:
         include_prefix = "arm-linux-gnueabihf/"
     elif target_arch == ARCHS.x86_64:
         include_prefix = "x86_64-linux/"
+    else:
+        fail("include_prefix must be set for target_arch '{}'".format(target_arch))
+
+    # Create a symlink at the toolchain root so that sysroot is always at {toolchain_root}/sysroot
+    if rctx.attr.symlink_sysroot_path != None and rctx.attr.symlink_sysroot_path != "":
+        rctx.symlink(rctx.attr.symlink_sysroot_path, "sysroot")
 
     c_builtin_includes = [
         include.format(
@@ -316,6 +323,14 @@ _FEATURE_ATTRS = {
         doc = "An explicit prefix used by each binary in bin/.",
         mandatory = True,
     ),
+    "include_prefix": attr.string(
+        doc = "An directory prefix used by include/ and lib/.",
+        mandatory = False,
+    ),
+    "symlink_sysroot_path": attr.string(
+        doc = "If set, a symlink will be created at the toolchain root named 'sysroot' pointing to this path inside the toolchain." +
+              " This is useful for crosstool-ng toolchains that put the sysroot in a arch-specific subdirectory.",
+    ),
     "enable_fortran": attr.bool(
         doc = "Whether to enable Fortran support.",
         default = True,
@@ -401,7 +416,7 @@ gcc_toolchain = repository_rule(
 
 ATTRS_SHARED_WITH_MODULE_EXTENSION = {
     attr_name: _FEATURE_ATTRS[attr_name]
-    for attr_name in ["gcc_version", "gcc_versions", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags", "enable_fortran"]
+    for attr_name in ["gcc_version", "gcc_versions", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags", "enable_fortran", "binary_prefix", "include_prefix", "symlink_sysroot_path"]
 }
 
 def _render_tool_paths(rctx, path_prefix, binary_prefix):

@@ -19,6 +19,9 @@ def _gcc_register_toolchain_module_extension(mctx):
                 extra_cxxflags = declare.extra_cxxflags,
                 extra_ldflags = declare.extra_ldflags,
                 extra_fflags = declare.extra_fflags,
+                binary_prefix = declare.binary_prefix,
+                include_prefix = declare.include_prefix,
+                symlink_sysroot_path = declare.symlink_sysroot_path,
                 enable_fortran = declare.enable_fortran,
             )
 
