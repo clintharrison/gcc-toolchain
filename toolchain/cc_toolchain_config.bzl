@@ -29,6 +29,7 @@ load(
     "tool_path",
     "with_feature_set",
 )
+load("@rules_cc//cc/common:cc_common.bzl", "cc_common")
 load("//toolchain/fortran:action_names.bzl", FORTRAN_ACTION_NAMES = "ACTION_NAMES")
 
 all_compile_actions = [
@@ -200,23 +201,24 @@ def _impl(ctx):
         ],
     )
 
-    action_configs.append(action_config(
-        action_name = FORTRAN_ACTION_NAMES.fortran_compile,
-        enabled = True,
-        tools = [tool(path = tool_paths.get("gfortran"))],
-    ))
+    if ctx.attr.enable_fortran:
+        action_configs.append(action_config(
+            action_name = FORTRAN_ACTION_NAMES.fortran_compile,
+            enabled = True,
+            tools = [tool(path = tool_paths.get("gfortran"))],
+        ))
 
-    action_configs.append(action_config(
-        action_name = FORTRAN_ACTION_NAMES.fortran_link_executable,
-        enabled = True,
-        tools = [tool(path = tool_paths.get("gfortran"))],
-    ))
+        action_configs.append(action_config(
+            action_name = FORTRAN_ACTION_NAMES.fortran_link_executable,
+            enabled = True,
+            tools = [tool(path = tool_paths.get("gfortran"))],
+        ))
 
-    action_configs.append(action_config(
-        action_name = FORTRAN_ACTION_NAMES.fortran_archive,
-        enabled = True,
-        tools = [tool(path = tool_paths.get("ar"))],
-    ))
+        action_configs.append(action_config(
+            action_name = FORTRAN_ACTION_NAMES.fortran_archive,
+            enabled = True,
+            tools = [tool(path = tool_paths.get("ar"))],
+        ))
 
     default_compile_flags_feature = feature(
         name = "default_compile_flags",
@@ -558,6 +560,7 @@ cc_toolchain_config = rule(
         "extra_ldflags": attr.string_list(mandatory = True),
         "extra_asmflags": attr.string_list(mandatory = True),
         "tool_paths": attr.string_dict(mandatory = True),
+        "enable_fortran": attr.bool(default = False, doc = "If true, enables Fortran support"),
     },
     provides = [CcToolchainConfigInfo],
 )

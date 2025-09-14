@@ -1,5 +1,5 @@
 load("@bazel_skylib//lib:dicts.bzl", "dicts")
-load(":defs.bzl", "ARCHS", "ATTRS_SHARED_WITH_MODULE_EXTENSION", "AVAILABLE_GCC_VERSIONS", "DEFAULT_GCC_VERSION", "gcc_declare_toolchain")
+load(":defs.bzl", "ARCHS", "ATTRS_SHARED_WITH_MODULE_EXTENSION", "gcc_declare_toolchain")
 
 def _gcc_register_toolchain_module_extension(mctx):
     for mod in mctx.modules:
@@ -19,6 +19,7 @@ def _gcc_register_toolchain_module_extension(mctx):
                 extra_cxxflags = declare.extra_cxxflags,
                 extra_ldflags = declare.extra_ldflags,
                 extra_fflags = declare.extra_fflags,
+                enable_fortran = declare.enable_fortran,
             )
 
     # Since we know that for each gcc toolchain repository we'll generate the same files, we mark the rule as reproducible.

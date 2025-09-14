@@ -163,24 +163,26 @@ def _gcc_toolchain_impl(rctx):
     ])
     extra_cxxflags.extend(rctx.attr.extra_cxxflags)
 
-    extra_fflags = [
-        "-nostdinc",
-        "-B%workspace%/bin",
-        "-B%workspace%/xbin",
-    ]
-    extra_fflags.extend([
-        "-I{}".format(include)
-        for include in f_builtin_includes
-    ])
-    extra_fflags.extend([
-        "-I{}".format(include)
-        for include in c_builtin_includes
-    ])
-    extra_fflags.extend([
-        "-I{}".format(finclude)
-        for finclude in rctx.attr.fincludes
-    ])
-    extra_fflags.extend(rctx.attr.extra_fflags)
+    extra_fflags = []
+    if rctx.attr.enable_fortran:
+        extra_fflags.extend([
+            "-nostdinc",
+            "-B%workspace%/bin",
+            "-B%workspace%/xbin",
+        ])
+        extra_fflags.extend([
+            "-I{}".format(include)
+            for include in f_builtin_includes
+        ])
+        extra_fflags.extend([
+            "-I{}".format(include)
+            for include in c_builtin_includes
+        ])
+        extra_fflags.extend([
+            "-I{}".format(finclude)
+            for finclude in rctx.attr.fincludes
+        ])
+        extra_fflags.extend(rctx.attr.extra_fflags)
 
     extra_ldflags = [
         lib.format(
@@ -216,6 +218,11 @@ def _gcc_toolchain_impl(rctx):
     ])
     extra_asmflags.extend(rctx.attr.extra_asmflags)
 
+    fortran_toolchain_section = _TOOLCHAIN_BUILD_FILE_FORTRAN_CONTENT.format(
+        gcc_toolchain_workspace_name = rctx.attr.gcc_toolchain_workspace_name,
+        target_compatible_with = target_compatible_with,
+    ) if rctx.attr.enable_fortran else ""
+
     rctx.file("BUILD.bazel", _TOOLCHAIN_BUILD_FILE_CONTENT.format(
         gcc_toolchain_workspace_name = rctx.attr.gcc_toolchain_workspace_name,
         target_compatible_with = target_compatible_with,
@@ -232,6 +239,10 @@ def _gcc_toolchain_impl(rctx):
         extra_fflags = _format_flags(extra_fflags),
         extra_ldflags = _format_flags(extra_ldflags),
         extra_asmflags = _format_flags(extra_asmflags),
+
+        # Fortran support
+        enable_fortran = rctx.attr.enable_fortran,
+        fortran_toolchain_section = fortran_toolchain_section,
     ))
 
 AVAILABLE_GCC_VERSIONS = {
@@ -299,6 +310,10 @@ _FEATURE_ATTRS = {
     "binary_prefix": attr.string(
         doc = "An explicit prefix used by each binary in bin/.",
         mandatory = True,
+    ),
+    "enable_fortran": attr.bool(
+        doc = "Whether to enable Fortran support.",
+        default = True,
     ),
     "extra_cflags": attr.string_list(
         doc = "Extra flags for compiling C.",
@@ -381,7 +396,7 @@ gcc_toolchain = repository_rule(
 
 ATTRS_SHARED_WITH_MODULE_EXTENSION = {
     attr_name: _FEATURE_ATTRS[attr_name]
-    for attr_name in ["gcc_version", "gcc_versions", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags"]
+    for attr_name in ["gcc_version", "gcc_versions", "extra_cflags", "extra_cxxflags", "extra_ldflags", "extra_fflags", "extra_asmflags", "enable_fortran"]
 }
 
 def _render_tool_paths(rctx, path_prefix, binary_prefix):
@@ -410,10 +425,6 @@ def _render_tool_paths(rctx, path_prefix, binary_prefix):
             path_prefix = path_prefix,
             binary_prefix = binary_prefix,
         ),
-        "gfortran": "{path_prefix}/bin/{binary_prefix}gfortran".format(
-            path_prefix = path_prefix,
-            binary_prefix = binary_prefix,
-        ),
         "ld": "{path_prefix}/bin/{binary_prefix}ld".format(
             path_prefix = path_prefix,
             binary_prefix = binary_prefix,
@@ -435,6 +446,11 @@ def _render_tool_paths(rctx, path_prefix, binary_prefix):
             binary_prefix = binary_prefix,
         ),
     }
+    if rctx.attr.enable_fortran:
+        relative_tool_paths["gfortran"] = "{path_prefix}/bin/{binary_prefix}gfortran".format(
+            path_prefix = path_prefix,
+            binary_prefix = binary_prefix,
+        )
 
     path_env = ":".join([
         path.format(
@@ -523,14 +539,7 @@ ARCHS = struct(
     x86_64 = "x86_64",
 )
 
-_TOOLCHAIN_BUILD_FILE_CONTENT = """\
-load("@rules_cc//cc:defs.bzl", "cc_toolchain")
-load("@{gcc_toolchain_workspace_name}//toolchain:cc_toolchain_config.bzl", "cc_toolchain_config")
-load("@{gcc_toolchain_workspace_name}//toolchain/fortran:defs.bzl", "fortran_toolchain")
-load("//:tool_paths.bzl", "tool_paths")
-
-package(default_visibility = ["//visibility:public"])
-
+_TOOLCHAIN_BUILD_FILE_FORTRAN_CONTENT = """\
 toolchain(
     name = "fortran_toolchain",
     exec_compatible_with = [
@@ -546,6 +555,17 @@ fortran_toolchain(
     name = "_fortran_toolchain",
     cc_toolchain = ":_cc_toolchain",
 )
+"""
+
+_TOOLCHAIN_BUILD_FILE_CONTENT = """\
+load("@rules_cc//cc:defs.bzl", "cc_toolchain")
+load("@{gcc_toolchain_workspace_name}//toolchain:cc_toolchain_config.bzl", "cc_toolchain_config")
+load("@{gcc_toolchain_workspace_name}//toolchain/fortran:defs.bzl", "fortran_toolchain")
+load("//:tool_paths.bzl", "tool_paths")
+
+package(default_visibility = ["//visibility:public"])
+
+{fortran_toolchain_section}
 
 toolchain(
     name = "cc_toolchain",
@@ -584,6 +604,7 @@ cc_toolchain_config(
     extra_ldflags = {extra_ldflags},
     extra_asmflags = {extra_asmflags},
     tool_paths = tool_paths,
+    enable_fortran = {enable_fortran},
 )
 
 filegroup(
@@ -645,10 +666,10 @@ filegroup(
         "include/c++/*/**",
         "{include_prefix}include/c++/*/backward/**",
         "include/c++/*/backward/**",
-
+    ] + ([
         # Fortran includes
         "lib/gcc/{include_prefix}*/finclude/**",
-    ], allow_empty=True),
+    ] if {enable_fortran} else []), allow_empty=True),
     visibility = ["//visibility:public"],
 )
 
@@ -675,12 +696,13 @@ filegroup(
         "bin/{binary_prefix}cpp",
         "bin/{binary_prefix}g++",
         "bin/{binary_prefix}gcc",
-        "bin/{binary_prefix}gfortran",
         "xbin/cpp",
         "xbin/g++",
         "xbin/gcc",
+    ] + ([
+        "bin/{binary_prefix}gfortran",
         "xbin/gfortran",
-    ] + glob([
+    ] if {enable_fortran} else []) + glob([
         "**/libexec/gcc/**/cc1plus",
         "**/libexec/gcc/**/cc1",
         "**/libexec/gcc/**/f951",
@@ -688,10 +710,11 @@ filegroup(
         "lib/libgmp.so*",
         "lib/libmpc.so*",
         "lib/libmpfr.so*",
+    ] + ([
         # Fortran spec files.
         "**/lib*/libgfortran.spec",
         "**/lib*/libgomp.spec",
-    ], allow_empty=True),
+    ] if {enable_fortran} else []), allow_empty=True),
     visibility = ["//visibility:public"],
 )
 
