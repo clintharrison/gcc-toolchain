@@ -23,10 +23,15 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 load("@bazel_skylib//lib:paths.bzl", "paths")
 
 def _gcc_toolchain_impl(rctx):
+    # type: (repository_ctx) -> None
     versions = json.decode(rctx.attr.gcc_versions)
+    strip_prefix = ""
+    if "strip_prefix" in versions[rctx.attr.gcc_version][rctx.attr.target_arch]:
+        strip_prefix = versions[rctx.attr.gcc_version][rctx.attr.target_arch]["strip_prefix"]
     rctx.download_and_extract(
         url = versions[rctx.attr.gcc_version][rctx.attr.target_arch]["url"],
         sha256 = versions[rctx.attr.gcc_version][rctx.attr.target_arch]["sha256"],
+        strip_prefix = strip_prefix,
     )
 
     absolute_toolchain_root = str(rctx.path("."))
