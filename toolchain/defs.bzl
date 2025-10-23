@@ -680,6 +680,7 @@ filegroup(
         "lib/gcc/{include_prefix}*/include-fixed/**",
         "{include_prefix}include/**",
         "sysroot/usr/include/**",
+        "sysroot/usr/lib/*/include/**",
 
         # C++ includes
         "{include_prefix}include/c++/*/**",
